@@ -1,5 +1,8 @@
 const express = require('express')
 const modelo = require('./modelo.js');
+const bd = require('./bd/bd_utils.js');
+const RepositorioVotosSQLite = require('./votacao/repositorio_votos_sqlite.js');
+const { VotacaoService } = require('./votacao/votacao_service.js');
 
 const app = express()
 app.use(express.json());
@@ -10,6 +13,11 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   next();
 });
+
+// Composição da votação: server.js decide qual implementação concreta usar
+// (DIP -- ver IMPLEMENTACAO_SOLID.md)
+const repositorio_votos = new RepositorioVotosSQLite(bd);
+const votacao_service = new VotacaoService(repositorio_votos);
 
 app.get('/', (req, res) => {
   try {
@@ -56,6 +64,20 @@ app.post('/respostas', (req, res) => {
   catch(erro) {
     res.status(500).json(erro.message); 
   } 
+});
+
+app.post('/votos', (req, res) => {
+  try {
+    const id_pergunta = req.body.id_pergunta;
+    const id_usuario = req.body.id_usuario || 1; // sem autenticacao real ainda, mesmo padrao de cadastrar_pergunta
+    const tipo = req.body.tipo; // 'up' ou 'down'
+
+    const saldo_votos = votacao_service.registrar_voto(id_pergunta, id_usuario, tipo);
+    res.json({ saldo_votos: saldo_votos });
+  }
+  catch(erro) {
+    res.status(400).json(erro.message);
+  }
 });
 
 // espera e trata requisições de clientes
